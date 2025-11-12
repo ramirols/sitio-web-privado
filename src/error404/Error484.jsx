@@ -26,7 +26,7 @@ const Error404 = () => {
                     initial={{ y: 20, opacity: 0 }}
                     animate={{ transform: 'translateY(0)', opacity: 1 }}
                     transition={{ delay: 0.5 }}
-                    href="/"
+                    href="/login"
                     className="inline-block mt-8 px-6 py-3 bg-primary text-white rounded-full hover:bg-primary/80 transition-colors"
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
