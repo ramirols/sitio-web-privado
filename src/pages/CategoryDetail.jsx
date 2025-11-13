@@ -59,7 +59,7 @@ const CategoryDetail = () => {
             const formData = new FormData();
             formData.append("file", file);
 
-            const res = await fetch(import.meta.env.VITE_R2_UPLOAD_URL, {
+            const res = await fetch("/api/upload", {
                 method: "POST",
                 body: formData,
             });
