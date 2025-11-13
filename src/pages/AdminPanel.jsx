@@ -153,7 +153,16 @@ const AdminPanel = () => {
         }
 
         if (type === "deleteCategory") {
-            await supabase.from("categories").delete().eq("id", userId);
+            const { error } = await supabase
+                .from("categories")
+                .delete()
+                .eq("id", userId);
+
+            if (error) {
+                toast.error("No se pudo eliminar la categoría");
+                return;
+            }
+
             toast.success("Categoría eliminada");
             fetchCategories();
         }
