@@ -29,8 +29,11 @@ const CategoryDetail = () => {
             .eq("id", id)
             .single();
 
-        if (error) console.error(error);
-        else setCategory(data);
+        if (error) console.error("❌ Error cargando categoría:", error);
+        else {
+            console.log("✅ Categoría cargada:", data);
+            setCategory(data);
+        }
     };
 
     const fetchMedia = async () => {
@@ -40,8 +43,11 @@ const CategoryDetail = () => {
             .eq("category_id", id)
             .order("created_at", { ascending: false });
 
-        if (error) console.error(error);
-        else setMedia(data || []);
+        if (error) console.error("❌ Error cargando media:", error);
+        else {
+            console.log("✅ Media cargada:", data);
+            setMedia(data || []);
+        }
     };
 
     const uploadToR2 = async () => {
@@ -59,6 +65,8 @@ const CategoryDetail = () => {
             const formData = new FormData();
             formData.append("file", file);
 
+            console.log("📤 Subiendo archivo:", file.name, file.type, file.size);
+
             const res = await fetch("/api/upload", {
                 method: "POST",
                 body: formData,
@@ -67,6 +75,8 @@ const CategoryDetail = () => {
             if (!res.ok) throw new Error("Error al subir archivo al R2");
 
             const result = await res.json();
+            console.log("✅ Archivo subido a R2:", result);
+
             const fileUrl = result.url;
             const fileType = file.type.startsWith("image") ? "image" : "video";
 
@@ -82,18 +92,37 @@ const CategoryDetail = () => {
             setFile(null);
             fetchMedia();
         } catch (err) {
-            console.error(err);
+            console.error("❌ Error al subir el archivo:", err);
             toast.error("Error al subir el archivo");
         }
     };
 
     const deleteMedia = async (mid) => {
+        console.log("🗑️ Eliminando media con ID:", mid);
         const { error } = await supabase.from("media").delete().eq("id", mid);
         if (!error) {
             toast.success("Archivo eliminado");
             fetchMedia();
+        } else {
+            console.error("❌ Error eliminando media:", error);
         }
     };
+
+    // 🔍 Prueba de diagnóstico: intentar precargar imágenes y ver errores
+    useEffect(() => {
+        if (media.length > 0) {
+            console.log("🔍 Verificando URLs de imágenes...");
+            media.forEach((m) => {
+                console.log(`🖼️ ID: ${m.id} | URL: ${m.file_url}`);
+                const img = new Image();
+                img.src = m.file_url;
+                img.onload = () =>
+                    console.log(`✅ Imagen cargada correctamente: ${m.file_url}`);
+                img.onerror = (e) =>
+                    console.error(`🚫 Error cargando imagen: ${m.file_url}`, e);
+            });
+        }
+    }, [media]);
 
     return (
         <div className="min-h-screen bg-gray-100 p-4">
@@ -138,12 +167,29 @@ const CategoryDetail = () => {
                                     src={m.file_url}
                                     alt="media"
                                     className="w-full h-32 object-cover rounded"
+                                    onError={(e) =>
+                                        console.error(
+                                            `🚫 Error renderizando <img> con URL: ${m.file_url}`,
+                                            e
+                                        )
+                                    }
+                                    onLoad={() =>
+                                        console.log(
+                                            `✅ Imagen renderizada en DOM: ${m.file_url}`
+                                        )
+                                    }
                                 />
                             ) : (
                                 <video
                                     src={m.file_url}
                                     controls
                                     className="w-full h-32 object-cover rounded"
+                                    onError={(e) =>
+                                        console.error(
+                                            `🚫 Error cargando video: ${m.file_url}`,
+                                            e
+                                        )
+                                    }
                                 />
                             )}
 
