@@ -15,7 +15,7 @@ const Navbar = () => {
                 <h1 className="font-semibold">Panel de administración</h1>
                 <button
                     onClick={logout}
-                    className="bg-white text-blue-600 px-3 py-1 rounded-md font-medium cursor-pointer"
+                    className="bg-red-600 text-white px-3 py-1 rounded-md font-medium cursor-pointer"
                 >
                     Cerrar sesión
                 </button>

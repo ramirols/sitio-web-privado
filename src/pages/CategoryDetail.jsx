@@ -8,14 +8,20 @@ const CategoryDetail = () => {
     const [category, setCategory] = useState(null);
     const [media, setMedia] = useState([]);
     const [file, setFile] = useState(null);
+    const [currentUser, setCurrentUser] = useState(null);
     const navigate = useNavigate();
 
     useEffect(() => {
+        const storedUser = JSON.parse(localStorage.getItem("user"));
+        if (!storedUser) {
+            navigate("/login");
+            return;
+        }
+        setCurrentUser(storedUser);
         fetchCategory();
         fetchMedia();
     }, [id]);
 
-    // Obtener la categoría
     const fetchCategory = async () => {
         const { data, error } = await supabase
             .from("categories")
@@ -27,7 +33,6 @@ const CategoryDetail = () => {
         else setCategory(data);
     };
 
-    // Obtener todos los archivos de esa categoría
     const fetchMedia = async () => {
         const { data, error } = await supabase
             .from("media")
@@ -39,8 +44,12 @@ const CategoryDetail = () => {
         else setMedia(data || []);
     };
 
-    // Subir archivo a Cloudflare R2
     const uploadToR2 = async () => {
+        if (currentUser?.role !== "admin") {
+            toast.error("No tienes permisos para subir archivos");
+            return;
+        }
+
         if (!file) {
             toast.error("Selecciona un archivo antes de subir");
             return;
@@ -50,15 +59,14 @@ const CategoryDetail = () => {
             const formData = new FormData();
             formData.append("file", file);
 
-            // Este endpoint será tu puente a Cloudflare
             const res = await fetch(import.meta.env.VITE_R2_UPLOAD_URL, {
                 method: "POST",
                 body: formData,
             });
 
             if (!res.ok) throw new Error("Error al subir archivo al R2");
-            const result = await res.json();
 
+            const result = await res.json();
             const fileUrl = result.url;
             const fileType = file.type.startsWith("image") ? "image" : "video";
 
@@ -69,6 +77,7 @@ const CategoryDetail = () => {
             });
 
             if (error) throw error;
+
             toast.success("Archivo subido correctamente");
             setFile(null);
             fetchMedia();
@@ -78,7 +87,6 @@ const CategoryDetail = () => {
         }
     };
 
-    // Eliminar archivo
     const deleteMedia = async (mid) => {
         const { error } = await supabase.from("media").delete().eq("id", mid);
         if (!error) {
@@ -101,20 +109,24 @@ const CategoryDetail = () => {
                     <h1 className="text-2xl font-bold mb-4">{category.name}</h1>
                 )}
 
-                <div className="flex gap-2 mb-5">
-                    <input
-                        type="file"
-                        onChange={(e) => setFile(e.target.files[0])}
-                        className="border p-2 rounded flex-1 cursor-pointer"
-                    />
-                    <button
-                        onClick={uploadToR2}
-                        className="bg-blue-600 text-white px-4 rounded hover:bg-blue-700 cursor-pointer"
-                    >
-                        Subir
-                    </button>
-                </div>
+                {/* Solo el admin puede subir archivos */}
+                {currentUser?.role === "admin" && (
+                    <div className="flex gap-2 mb-5">
+                        <input
+                            type="file"
+                            onChange={(e) => setFile(e.target.files[0])}
+                            className="border p-2 rounded flex-1 cursor-pointer"
+                        />
+                        <button
+                            onClick={uploadToR2}
+                            className="bg-blue-600 text-white px-4 rounded hover:bg-blue-700 cursor-pointer"
+                        >
+                            Subir
+                        </button>
+                    </div>
+                )}
 
+                {/* Mostrar archivos */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {media.map((m) => (
                         <div
@@ -134,12 +146,16 @@ const CategoryDetail = () => {
                                     className="w-full h-32 object-cover rounded"
                                 />
                             )}
-                            <button
-                                onClick={() => deleteMedia(m.id)}
-                                className="absolute top-2 right-2 bg-red-600 text-white text-xs px-2 py-1 rounded cursor-pointer"
-                            >
-                                X
-                            </button>
+
+                            {/* Solo el admin puede eliminar */}
+                            {currentUser?.role === "admin" && (
+                                <button
+                                    onClick={() => deleteMedia(m.id)}
+                                    className="absolute top-2 right-2 bg-red-600 text-white text-xs px-2 py-1 rounded cursor-pointer"
+                                >
+                                    X
+                                </button>
+                            )}
                         </div>
                     ))}
                 </div>

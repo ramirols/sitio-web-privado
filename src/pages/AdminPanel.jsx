@@ -12,6 +12,9 @@ const AdminPanel = () => {
     const [currentUser, setCurrentUser] = useState(null);
     const [modal, setModal] = useState({ show: false, type: "", userId: null, role: "" });
     const navigate = useNavigate();
+    const [newUser, setNewUser] = useState("");
+    const [newPassword, setNewPassword] = useState("");
+    const [newRole, setNewRole] = useState("user");
 
     useEffect(() => {
         const storedUser = JSON.parse(localStorage.getItem("user"));
@@ -31,6 +34,10 @@ const AdminPanel = () => {
 
     const addCategory = async (e) => {
         e.preventDefault();
+        if (currentUser?.role !== "admin") {
+            toast.error("No tienes permisos para añadir categorías");
+            return;
+        }
         if (!newCategory.trim()) return;
         const { error } = await supabase.from("categories").insert({ name: newCategory });
         if (!error) {
@@ -41,6 +48,10 @@ const AdminPanel = () => {
     };
 
     const deleteCategory = async (id) => {
+        if (currentUser?.role !== "admin") {
+            toast.error("No tienes permisos para eliminar categorías");
+            return;
+        }
         setModal({ show: true, type: "deleteCategory", userId: id });
     };
 
@@ -50,10 +61,47 @@ const AdminPanel = () => {
         if (!error) setUsers(data);
     };
 
+    const addUser = async (e) => {
+        e.preventDefault();
+        if (currentUser?.role !== "admin") {
+            toast.error("No tienes permisos para añadir usuarios");
+            return;
+        }
+        if (!newUser.trim() || !newPassword.trim()) {
+            toast.error("Completa todos los campos");
+            return;
+        }
+
+        const { error } = await supabase
+            .from("users")
+            .insert([
+                {
+                    name: newUser,
+                    username: newUser,
+                    password: newPassword,
+                    role: newRole
+                }
+            ]);
+
+        if (error) {
+            toast.error("Error al crear el usuario");
+        } else {
+            toast.success("Usuario creado con éxito");
+            setNewUser("");
+            setNewPassword("");
+            setNewRole("user");
+            fetchUsers();
+        }
+    };
+
     const confirmAction = async () => {
         const { type, userId, role } = modal;
 
         if (type === "deleteUser") {
+            if (currentUser?.role !== "admin") {
+                toast.error("No tienes permisos para eliminar usuarios");
+                return;
+            }
             const { error } = await supabase.from("users").delete().eq("id", userId);
             if (!error) {
                 toast.success("Usuario eliminado");
@@ -70,6 +118,10 @@ const AdminPanel = () => {
         }
 
         if (type === "deleteCategory") {
+            if (currentUser?.role !== "admin") {
+                toast.error("No tienes permisos para eliminar categorías");
+                return;
+            }
             await supabase.from("categories").delete().eq("id", userId);
             toast.success("Categoría eliminada");
             fetchCategories();
@@ -87,21 +139,25 @@ const AdminPanel = () => {
     return (
         <div className="min-h-screen bg-gray-100">
             <Navbar />
+
             <div className="max-w-5xl mx-auto p-6">
                 {/* Categorías */}
                 <section className="mb-12">
                     <h2 className="text-3xl font-bold mb-4 text-gray-800">Categorías</h2>
-                    <form onSubmit={addCategory} className="flex gap-2 mb-4">
-                        <input
-                            value={newCategory}
-                            onChange={(e) => setNewCategory(e.target.value)}
-                            className="flex-1 border border-gray-300 p-2 rounded-lg focus:ring-2 focus:ring-blue-500"
-                            placeholder="Nueva categoría"
-                        />
-                        <button className="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 transition cursor-pointer">
-                            Añadir
-                        </button>
-                    </form>
+
+                    {currentUser?.role === "admin" && (
+                        <form onSubmit={addCategory} className="flex gap-2 mb-4">
+                            <input
+                                value={newCategory}
+                                onChange={(e) => setNewCategory(e.target.value)}
+                                className="flex-1 border border-gray-300 p-2 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                placeholder="Nueva categoría"
+                            />
+                            <button className="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 transition cursor-pointer">
+                                Añadir
+                            </button>
+                        </form>
+                    )}
 
                     <ul className="space-y-2">
                         {categories.map((cat) => (
@@ -117,12 +173,15 @@ const AdminPanel = () => {
                                     >
                                         Ver
                                     </button>
-                                    <button
-                                        onClick={() => deleteCategory(cat.id)}
-                                        className="text-red-500 hover:underline cursor-pointer"
-                                    >
-                                        Eliminar
-                                    </button>
+
+                                    {currentUser?.role === "admin" && (
+                                        <button
+                                            onClick={() => deleteCategory(cat.id)}
+                                            className="text-red-500 hover:underline cursor-pointer"
+                                        >
+                                            Eliminar
+                                        </button>
+                                    )}
                                 </div>
                             </li>
                         ))}
@@ -142,9 +201,43 @@ const AdminPanel = () => {
                                 placeholder="Buscar usuario..."
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
-                                className="border border-gray-300 rounded-lg px-3 py-2 w-64 focus:ring-2 focus:ring-blue-500"
+                                className="border border-gray-300 rounded-lg px-3 py-2 w-full focus:ring-2 focus:ring-blue-500"
                             />
                         </div>
+
+                        {/* Añadir usuario */}
+                        <form onSubmit={addUser} className="flex gap-2 mb-4 flex-wrap">
+                            <input
+                                value={newUser}
+                                onChange={(e) => setNewUser(e.target.value)}
+                                className="flex-1 border border-gray-300 p-2 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                placeholder="Nuevo usuario"
+                            />
+
+                            <input
+                                type="password"
+                                value={newPassword}
+                                onChange={(e) => setNewPassword(e.target.value)}
+                                className="flex-1 border border-gray-300 p-2 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                placeholder="Contraseña"
+                            />
+
+                            <select
+                                value={newRole}
+                                onChange={(e) => setNewRole(e.target.value)}
+                                className="flex-1 border border-gray-300 p-2 rounded-lg focus:ring-2 focus:ring-blue-500"
+                            >
+                                <option value="user">Usuario</option>
+                                <option value="admin">Administrador</option>
+                            </select>
+
+                            <button
+                                type="submit"
+                                className="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 transition cursor-pointer"
+                            >
+                                Añadir
+                            </button>
+                        </form>
 
                         {/* Tabla */}
                         <div className="overflow-x-auto">
