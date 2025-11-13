@@ -52,7 +52,7 @@ export default async function handler(req) {
         const publicBase = "https://pub-08efed47231c42f0a395fada7f0cdf5c.r2.dev"; // ⚠️ pon aquí tu URL pública real
         const fileUrl = `${publicBase}/${fileKey}`;
 
-        console.log("✅ Archivo subido correctamente:", fileUrl);
+        ("✅ Archivo subido correctamente:", fileUrl);
 
         // 📤 7. Responder al frontend
         return new Response(JSON.stringify({ url: fileUrl }), {

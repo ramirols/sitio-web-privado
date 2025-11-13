@@ -9,6 +9,7 @@ const CategoryDetail = () => {
     const [media, setMedia] = useState([]);
     const [file, setFile] = useState(null);
     const [currentUser, setCurrentUser] = useState(null);
+    const [selectedMedia, setSelectedMedia] = useState(null);
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -31,7 +32,7 @@ const CategoryDetail = () => {
 
         if (error) console.error("❌ Error cargando categoría:", error);
         else {
-            console.log("✅ Categoría cargada:", data);
+            ("✅ Categoría cargada:", data);
             setCategory(data);
         }
     };
@@ -45,7 +46,7 @@ const CategoryDetail = () => {
 
         if (error) console.error("❌ Error cargando media:", error);
         else {
-            console.log("✅ Media cargada:", data);
+            ("✅ Media cargada:", data);
             setMedia(data || []);
         }
     };
@@ -65,7 +66,7 @@ const CategoryDetail = () => {
             const formData = new FormData();
             formData.append("file", file);
 
-            console.log("📤 Subiendo archivo:", file.name, file.type, file.size);
+            ("📤 Subiendo archivo:", file.name, file.type, file.size);
 
             const res = await fetch("/api/upload", {
                 method: "POST",
@@ -75,7 +76,7 @@ const CategoryDetail = () => {
             if (!res.ok) throw new Error("Error al subir archivo al R2");
 
             const result = await res.json();
-            console.log("✅ Archivo subido a R2:", result);
+            ("✅ Archivo subido a R2:", result);
 
             const fileUrl = result.url;
             const fileType = file.type.startsWith("image") ? "image" : "video";
@@ -98,7 +99,7 @@ const CategoryDetail = () => {
     };
 
     const deleteMedia = async (mid) => {
-        console.log("🗑️ Eliminando media con ID:", mid);
+        ("🗑️ Eliminando media con ID:", mid);
         const { error } = await supabase.from("media").delete().eq("id", mid);
         if (!error) {
             toast.success("Archivo eliminado");
@@ -111,13 +112,13 @@ const CategoryDetail = () => {
     // 🔍 Prueba de diagnóstico: intentar precargar imágenes y ver errores
     useEffect(() => {
         if (media.length > 0) {
-            console.log("🔍 Verificando URLs de imágenes...");
+            ("🔍 Verificando URLs de imágenes...");
             media.forEach((m) => {
-                console.log(`🖼️ ID: ${m.id} | URL: ${m.file_url}`);
+                (`🖼️ ID: ${m.id} | URL: ${m.file_url}`);
                 const img = new Image();
                 img.src = m.file_url;
                 img.onload = () =>
-                    console.log(`✅ Imagen cargada correctamente: ${m.file_url}`);
+                    (`✅ Imagen cargada correctamente: ${m.file_url}`);
                 img.onerror = (e) =>
                     console.error(`🚫 Error cargando imagen: ${m.file_url}`, e);
             });
@@ -160,43 +161,29 @@ const CategoryDetail = () => {
                     {media.map((m) => (
                         <div
                             key={m.id}
-                            className="bg-white p-2 rounded shadow relative overflow-hidden"
+                            className="bg-white p-2 rounded shadow relative overflow-hidden cursor-pointer"
+                            onClick={() => setSelectedMedia(m)}
                         >
                             {m.file_type === "image" ? (
                                 <img
                                     src={m.file_url}
                                     alt="media"
-                                    className="w-full h-32 object-cover rounded"
-                                    onError={(e) =>
-                                        console.error(
-                                            `🚫 Error renderizando <img> con URL: ${m.file_url}`,
-                                            e
-                                        )
-                                    }
-                                    onLoad={() =>
-                                        console.log(
-                                            `✅ Imagen renderizada en DOM: ${m.file_url}`
-                                        )
-                                    }
+                                    className="w-full h-50 object-cover rounded"
                                 />
                             ) : (
                                 <video
                                     src={m.file_url}
-                                    controls
-                                    className="w-full h-32 object-cover rounded"
-                                    onError={(e) =>
-                                        console.error(
-                                            `🚫 Error cargando video: ${m.file_url}`,
-                                            e
-                                        )
-                                    }
+                                    className="w-full h-50 object-cover rounded"
+                                    muted
                                 />
                             )}
 
-                            {/* Solo el admin puede eliminar */}
                             {currentUser?.role === "admin" && (
                                 <button
-                                    onClick={() => deleteMedia(m.id)}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        deleteMedia(m.id);
+                                    }}
                                     className="absolute top-2 right-2 bg-red-600 text-white text-xs px-2 py-1 rounded cursor-pointer"
                                 >
                                     X
@@ -206,6 +193,42 @@ const CategoryDetail = () => {
                     ))}
                 </div>
             </div>
+
+            {/* Modal de vista ampliada */}
+            {selectedMedia && (
+                <div
+                    className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
+                    onClick={() => setSelectedMedia(null)}
+                >
+                    <div
+                        className="relative bg-white rounded-lg max-w-3xl w-full max-h-[90vh] overflow-hidden shadow-lg"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {/* Botón de cierre */}
+                        <button
+                            onClick={() => setSelectedMedia(null)}
+                            className="absolute top-2 right-2 bg-gray-700 text-white rounded-full px-3 py-1 text-sm hover:bg-gray-900 cursor-pointer z-50"
+                        >
+                            ✕
+                        </button>
+
+                        {selectedMedia.file_type === "image" ? (
+                            <img
+                                src={selectedMedia.file_url}
+                                alt="Vista ampliada"
+                                className="w-full h-auto max-h-[85vh] object-contain"
+                            />
+                        ) : (
+                            <video
+                                src={selectedMedia.file_url}
+                                controls
+                                autoPlay
+                                className="w-full h-auto max-h-[85vh] object-contain"
+                            />
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
