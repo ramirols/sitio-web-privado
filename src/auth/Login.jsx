@@ -3,6 +3,7 @@ import { supabase } from "../lib/supabase";
 import { useNavigate } from "react-router-dom";
 import { z } from "zod";
 import toast from "react-hot-toast";
+import Logo from "../assets/logo.jpg";
 
 const Login = () => {
   const [username, setUsername] = useState("");
@@ -61,9 +62,7 @@ const Login = () => {
         onSubmit={handleLogin}
         className="bg-white p-6 rounded-2xl shadow-md w-80"
       >
-        <h2 className="text-2xl font-semibold text-center mb-4">
-          Iniciar sesión
-        </h2>
+        <img src={Logo} alt="Logo" className="w-20 h-20 mb-4 mx-auto" />
 
         <input
           type="text"
@@ -91,7 +90,7 @@ const Login = () => {
           type="submit"
           className="w-full bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700 transition-colors cursor-pointer"
         >
-          Ingresar
+          Iniciar Sesión
         </button>
       </form>
     </div>
