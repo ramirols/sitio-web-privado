@@ -1,7 +1,7 @@
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 
 export const config = {
-    runtime: "edge", // Usa el runtime Edge que sí soporta Vite
+    runtime: "edge", // ✅ Necesario para Vercel Edge Functions
 };
 
 export default async function handler(req) {
@@ -12,7 +12,7 @@ export default async function handler(req) {
     }
 
     try {
-        // Lee el body como FormData
+        // 🧾 1. Leer el archivo del FormData
         const formData = await req.formData();
         const file = formData.get("file");
 
@@ -22,7 +22,7 @@ export default async function handler(req) {
             });
         }
 
-        // Prepara el cliente S3 (R2)
+        // ⚙️ 2. Configurar cliente de Cloudflare R2
         const s3 = new S3Client({
             region: "auto",
             endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
@@ -32,31 +32,36 @@ export default async function handler(req) {
             },
         });
 
-        // Genera un nombre único
+        // 🧩 3. Generar un nombre único para el archivo
         const fileKey = `${Date.now()}_${file.name}`;
 
-        // Convierte el contenido a un ArrayBuffer
+        // 🧠 4. Convertir el archivo a buffer
         const arrayBuffer = await file.arrayBuffer();
 
-        // Sube a R2
+        // 🚀 5. Subir el archivo al bucket (sin prefijo "media/")
         const command = new PutObjectCommand({
-            Bucket: process.env.R2_BUCKET_NAME,
-            Key: fileKey,
+            Bucket: process.env.R2_BUCKET_NAME, // ejemplo: "media"
+            Key: fileKey, // ✅ sin "media/"
             Body: Buffer.from(arrayBuffer),
             ContentType: file.type,
         });
 
         await s3.send(command);
 
-        // Genera la URL pública (ajústala según tu configuración R2)
-        const fileUrl = `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${process.env.R2_BUCKET_NAME}/${fileKey}`;
+        // 🌍 6. Generar URL pública (r2.dev)
+        const publicBase = "https://pub-08efed47231c42f0a395fada7f0cdf5c.r2.dev"; // ⚠️ pon aquí tu URL pública real
+        const fileUrl = `${publicBase}/${fileKey}`;
 
+        console.log("✅ Archivo subido correctamente:", fileUrl);
+
+        // 📤 7. Responder al frontend
         return new Response(JSON.stringify({ url: fileUrl }), {
             status: 200,
             headers: { "Content-Type": "application/json" },
         });
+
     } catch (err) {
-        console.error("Error al subir archivo:", err);
+        console.error("❌ Error al subir archivo:", err);
         return new Response(JSON.stringify({ error: "Error al subir archivo al R2" }), {
             status: 500,
         });
