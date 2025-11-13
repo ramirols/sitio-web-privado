@@ -1,60 +1,64 @@
-import AWS from "aws-sdk";
-import multer from "multer";
-import { promisify } from "util";
-import stream from "stream";
-
-// Configuración del almacenamiento en memoria
-const storage = multer.memoryStorage();
-const upload = multer({ storage });
-const uploadMiddleware = upload.single("file");
-
-// Convertir callback en promesa
-const runMiddleware = promisify(uploadMiddleware);
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 
 export const config = {
-    api: {
-        bodyParser: false, // Desactivamos bodyParser para manejar FormData manualmente
-    },
+    runtime: "edge", // Usa el runtime Edge que sí soporta Vite
 };
 
-export default async function handler(req, res) {
+export default async function handler(req) {
     if (req.method !== "POST") {
-        return res.status(405).json({ error: "Método no permitido" });
+        return new Response(JSON.stringify({ error: "Método no permitido" }), {
+            status: 405,
+        });
     }
 
     try {
-        // Esperamos el archivo desde el FormData
-        await runMiddleware(req, res);
+        // Lee el body como FormData
+        const formData = await req.formData();
+        const file = formData.get("file");
 
-        const file = req.file;
-        if (!file) return res.status(400).json({ error: "No se envió ningún archivo" });
+        if (!file) {
+            return new Response(JSON.stringify({ error: "No se envió ningún archivo" }), {
+                status: 400,
+            });
+        }
 
-        // Configurar cliente S3 (R2)
-        const s3 = new AWS.S3({
-            endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-            accessKeyId: process.env.R2_ACCESS_KEY_ID,
-            secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+        // Prepara el cliente S3 (R2)
+        const s3 = new S3Client({
             region: "auto",
-            signatureVersion: "v4",
+            endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+            credentials: {
+                accessKeyId: process.env.R2_ACCESS_KEY_ID,
+                secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+            },
         });
 
-        const fileKey = `${Date.now()}_${file.originalname}`;
+        // Genera un nombre único
+        const fileKey = `${Date.now()}_${file.name}`;
 
-        // Subir archivo a R2
-        await s3.putObject({
+        // Convierte el contenido a un ArrayBuffer
+        const arrayBuffer = await file.arrayBuffer();
+
+        // Sube a R2
+        const command = new PutObjectCommand({
             Bucket: process.env.R2_BUCKET_NAME,
             Key: fileKey,
-            Body: file.buffer,
-            ContentType: file.mimetype,
-            ACL: "public-read",
-        }).promise();
+            Body: Buffer.from(arrayBuffer),
+            ContentType: file.type,
+        });
 
+        await s3.send(command);
+
+        // Genera la URL pública (ajústala según tu configuración R2)
         const fileUrl = `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${process.env.R2_BUCKET_NAME}/${fileKey}`;
 
-
-        res.status(200).json({ url: fileUrl });
+        return new Response(JSON.stringify({ url: fileUrl }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+        });
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: "Error al subir el archivo" });
+        console.error("Error al subir archivo:", err);
+        return new Response(JSON.stringify({ error: "Error al subir archivo al R2" }), {
+            status: 500,
+        });
     }
 }
