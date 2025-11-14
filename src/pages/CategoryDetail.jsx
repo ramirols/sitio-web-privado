@@ -32,7 +32,6 @@ const CategoryDetail = () => {
 
         if (error) console.error("❌ Error cargando categoría:", error);
         else {
-            ("✅ Categoría cargada:", data);
             setCategory(data);
         }
     };
@@ -46,7 +45,6 @@ const CategoryDetail = () => {
 
         if (error) console.error("❌ Error cargando media:", error);
         else {
-            ("✅ Media cargada:", data);
             setMedia(data || []);
         }
     };
@@ -66,8 +64,6 @@ const CategoryDetail = () => {
             const formData = new FormData();
             formData.append("file", file);
 
-            ("📤 Subiendo archivo:", file.name, file.type, file.size);
-
             const res = await fetch("/api/upload", {
                 method: "POST",
                 body: formData,
@@ -76,15 +72,16 @@ const CategoryDetail = () => {
             if (!res.ok) throw new Error("Error al subir archivo al R2");
 
             const result = await res.json();
-            ("✅ Archivo subido a R2:", result);
 
             const fileUrl = result.url;
-            const fileType = file.type.startsWith("image") ? "image" : "video";
+            const fileType = file.type;
+            const extension = file.name.split(".").pop().toLowerCase();
 
             const { error } = await supabase.from("media").insert({
                 category_id: id,
                 file_url: fileUrl,
                 file_type: fileType,
+                extension: extension,
             });
 
             if (error) throw error;
@@ -99,7 +96,6 @@ const CategoryDetail = () => {
     };
 
     const deleteMedia = async (mid) => {
-        ("🗑️ Eliminando media con ID:", mid);
         const { error } = await supabase.from("media").delete().eq("id", mid);
         if (!error) {
             toast.success("Archivo eliminado");
@@ -109,18 +105,15 @@ const CategoryDetail = () => {
         }
     };
 
-    // 🔍 Prueba de diagnóstico: intentar precargar imágenes y ver errores
     useEffect(() => {
         if (media.length > 0) {
-            ("🔍 Verificando URLs de imágenes...");
             media.forEach((m) => {
-                (`🖼️ ID: ${m.id} | URL: ${m.file_url}`);
-                const img = new Image();
-                img.src = m.file_url;
-                img.onload = () =>
-                    (`✅ Imagen cargada correctamente: ${m.file_url}`);
-                img.onerror = (e) =>
-                    console.error(`🚫 Error cargando imagen: ${m.file_url}`, e);
+                if (m.file_type.startsWith("image")) {
+                    const img = new Image();
+                    img.src = m.file_url;
+                    img.onload = () => toast.success("Imagen cargada correctamente");
+                    img.onerror = () => toast.error("Error cargando imagen");
+                }
             });
         }
     }, [media]);
@@ -164,19 +157,27 @@ const CategoryDetail = () => {
                             className="bg-white p-2 rounded shadow relative overflow-hidden cursor-pointer"
                             onClick={() => setSelectedMedia(m)}
                         >
-                            {m.file_type === "image" ? (
-                                <img
-                                    src={m.file_url}
-                                    alt="media"
-                                    className="w-full h-50 object-cover rounded"
-                                />
-                            ) : (
-                                <video
-                                    src={m.file_url}
-                                    className="w-full h-50 object-cover rounded"
-                                    muted
-                                />
+                            {m.file_type.startsWith("image") && (
+                                <img src={m.file_url} className="w-full h-50 object-cover rounded" />
                             )}
+
+                            {m.file_type.startsWith("video") && (
+                                <video src={m.file_url} className="w-full h-50 object-cover rounded" muted />
+                            )}
+
+                            {m.file_type.startsWith("audio") && (
+                                <audio src={m.file_url} controls className="w-full" />
+                            )}
+
+                            {!m.file_type.startsWith("image") &&
+                                !m.file_type.startsWith("video") &&
+                                !m.file_type.startsWith("audio") && (
+                                    <div className="p-4 text-center text-sm bg-gray-200 rounded">
+                                        <a href={m.file_url} target="_blank" className="underline">
+                                            Descargar archivo ({m.extension})
+                                        </a>
+                                    </div>
+                                )}
 
                             {currentUser?.role === "admin" && (
                                 <button
@@ -212,20 +213,28 @@ const CategoryDetail = () => {
                             ✕
                         </button>
 
-                        {selectedMedia.file_type === "image" ? (
-                            <img
-                                src={selectedMedia.file_url}
-                                alt="Vista ampliada"
-                                className="w-full h-auto max-h-[85vh] object-contain"
-                            />
-                        ) : (
-                            <video
-                                src={selectedMedia.file_url}
-                                controls
-                                autoPlay
-                                className="w-full h-auto max-h-[85vh] object-contain"
-                            />
+                        {selectedMedia.file_type.startsWith("image") && (
+                            <img src={selectedMedia.file_url} className="w-full h-auto max-h-[85vh] object-contain" />
                         )}
+
+                        {selectedMedia.file_type.startsWith("video") && (
+                            <video src={selectedMedia.file_url} controls autoPlay className="w-full h-auto max-h-[85vh] object-contain" />
+                        )}
+
+                        {selectedMedia.file_type.startsWith("audio") && (
+                            <audio src={selectedMedia.file_url} controls className="w-full" />
+                        )}
+
+                        {!selectedMedia.file_type.startsWith("image") &&
+                            !selectedMedia.file_type.startsWith("video") &&
+                            !selectedMedia.file_type.startsWith("audio") && (
+                                <div className="p-6 text-center">
+                                    <p className="mb-3">Este archivo no se puede previsualizar.</p>
+                                    <a href={selectedMedia.file_url} target="_blank" className="underline">
+                                        Descargar archivo ({selectedMedia.extension})
+                                    </a>
+                                </div>
+                            )}
                     </div>
                 </div>
             )}

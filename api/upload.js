@@ -1,7 +1,7 @@
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 
 export const config = {
-    runtime: "edge", // ✅ Necesario para Vercel Edge Functions
+    runtime: "edge",
 };
 
 export default async function handler(req) {
@@ -40,8 +40,8 @@ export default async function handler(req) {
 
         // 🚀 5. Subir el archivo al bucket (sin prefijo "media/")
         const command = new PutObjectCommand({
-            Bucket: process.env.R2_BUCKET_NAME, // ejemplo: "media"
-            Key: fileKey, // ✅ sin "media/"
+            Bucket: process.env.R2_BUCKET_NAME,
+            Key: fileKey,
             Body: Buffer.from(arrayBuffer),
             ContentType: file.type,
         });
@@ -49,7 +49,7 @@ export default async function handler(req) {
         await s3.send(command);
 
         // 🌍 6. Generar URL pública (r2.dev)
-        const publicBase = "https://pub-08efed47231c42f0a395fada7f0cdf5c.r2.dev"; // ⚠️ pon aquí tu URL pública real
+        const publicBase = "https://pub-08efed47231c42f0a395fada7f0cdf5c.r2.dev";
         const fileUrl = `${publicBase}/${fileKey}`;
 
         ("✅ Archivo subido correctamente:", fileUrl);
