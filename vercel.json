@@ -7,6 +7,12 @@
       "maxDuration": 20
     }
   },
+  "builds": [
+    {
+      "src": "api/upload.js",
+      "use": "@vercel/node"
+    }
+  ],
   "routes": [
     {
       "src": "/api/(.*)",
