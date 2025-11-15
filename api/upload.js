@@ -1,28 +1,42 @@
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 
 export const config = {
-    runtime: "edge",
+    api: {
+        bodyParser: false, // Necesario para streaming FormData
+    },
 };
 
-export default async function handler(req) {
+export default async function handler(req, res) {
     if (req.method !== "POST") {
-        return new Response(JSON.stringify({ error: "Método no permitido" }), {
-            status: 405,
-        });
+        return res.status(405).json({ error: "Método no permitido" });
     }
 
     try {
-        // 🧾 1. Leer el archivo del FormData
-        const formData = await req.formData();
-        const file = formData.get("file");
+        const formData = await new Promise((resolve, reject) => {
+            const busboy = require("busboy")({ headers: req.headers });
 
-        if (!file) {
-            return new Response(JSON.stringify({ error: "No se envió ningún archivo" }), {
-                status: 400,
+            let fileData = null;
+
+            busboy.on("file", (fieldname, file, info) => {
+                const { filename, mimeType } = info;
+                let chunks = [];
+
+                file.on("data", (chunk) => chunks.push(chunk));
+                file.on("end", () => {
+                    fileData = {
+                        buffer: Buffer.concat(chunks),
+                        filename,
+                        mimeType,
+                    };
+                });
             });
-        }
 
-        // ⚙️ 2. Configurar cliente de Cloudflare R2
+            busboy.on("finish", () => resolve(fileData));
+            busboy.on("error", reject);
+
+            req.pipe(busboy);
+        });
+
         const s3 = new S3Client({
             region: "auto",
             endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
@@ -32,38 +46,22 @@ export default async function handler(req) {
             },
         });
 
-        // 🧩 3. Generar un nombre único para el archivo
-        const fileKey = `${Date.now()}_${file.name}`;
+        const fileKey = `${Date.now()}_${formData.filename}`;
 
-        // 🧠 4. Convertir el archivo a buffer
-        const arrayBuffer = await file.arrayBuffer();
-
-        // 🚀 5. Subir el archivo al bucket (sin prefijo "media/")
         const command = new PutObjectCommand({
             Bucket: process.env.R2_BUCKET_NAME,
             Key: fileKey,
-            Body: Buffer.from(arrayBuffer),
-            ContentType: file.type,
+            Body: formData.buffer,
+            ContentType: formData.mimeType,
         });
 
         await s3.send(command);
 
-        // 🌍 6. Generar URL pública (r2.dev)
-        const publicBase = "https://pub-08efed47231c42f0a395fada7f0cdf5c.r2.dev";
-        const fileUrl = `${publicBase}/${fileKey}`;
+        const publicUrl = `https://pub-${process.env.R2_PUBLIC_ID}.r2.dev/${fileKey}`;
 
-        ("✅ Archivo subido correctamente:", fileUrl);
-
-        // 📤 7. Responder al frontend
-        return new Response(JSON.stringify({ url: fileUrl }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-        });
-
+        return res.status(200).json({ url: publicUrl });
     } catch (err) {
-        console.error("❌ Error al subir archivo:", err);
-        return new Response(JSON.stringify({ error: "Error al subir archivo al R2" }), {
-            status: 500,
-        });
+        console.error("❌ Error:", err);
+        return res.status(500).json({ error: "Error subiendo a R2" });
     }
 }

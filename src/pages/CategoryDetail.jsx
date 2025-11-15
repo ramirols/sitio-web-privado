@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
+import { Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
 
 const CategoryDetail = () => {
@@ -11,6 +12,8 @@ const CategoryDetail = () => {
     const [currentUser, setCurrentUser] = useState(null);
     const [selectedMedia, setSelectedMedia] = useState(null);
     const navigate = useNavigate();
+    const [loading, setLoading] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
 
     useEffect(() => {
         const storedUser = JSON.parse(localStorage.getItem("user"));
@@ -24,6 +27,7 @@ const CategoryDetail = () => {
     }, [id]);
 
     const fetchCategory = async () => {
+        setLoading(true);
         const { data, error } = await supabase
             .from("categories")
             .select("*")
@@ -34,9 +38,11 @@ const CategoryDetail = () => {
         else {
             setCategory(data);
         }
+        setLoading(false);
     };
 
     const fetchMedia = async () => {
+        setLoading(true);
         const { data, error } = await supabase
             .from("media")
             .select("*")
@@ -47,6 +53,7 @@ const CategoryDetail = () => {
         else {
             setMedia(data || []);
         }
+        setLoading(false);
     };
 
     const uploadToR2 = async () => {
@@ -60,18 +67,35 @@ const CategoryDetail = () => {
             return;
         }
 
+        setLoading(true);
+        setUploadProgress(0);
+
         try {
             const formData = new FormData();
             formData.append("file", file);
 
-            const res = await fetch("/api/upload", {
-                method: "POST",
-                body: formData,
+            const xhr = new XMLHttpRequest();
+
+            xhr.upload.onprogress = (event) => {
+                if (event.lengthComputable) {
+                    const percent = Math.round((event.loaded / event.total) * 100);
+                    setUploadProgress(percent);
+                }
+            };
+
+            const uploadPromise = new Promise((resolve, reject) => {
+                xhr.onreadystatechange = () => {
+                    if (xhr.readyState === 4) {
+                        if (xhr.status === 200) resolve(JSON.parse(xhr.responseText));
+                        else reject("Error al subir archivo al R2");
+                    }
+                };
             });
 
-            if (!res.ok) throw new Error("Error al subir archivo al R2");
+            xhr.open("POST", "/api/upload");
+            xhr.send(formData);
 
-            const result = await res.json();
+            const result = await uploadPromise;
 
             const fileUrl = result.url;
             const fileType = file.type;
@@ -90,12 +114,16 @@ const CategoryDetail = () => {
             setFile(null);
             fetchMedia();
         } catch (err) {
-            console.error("❌ Error al subir el archivo:", err);
+            console.error("❌ Error:", err);
             toast.error("Error al subir el archivo");
         }
+
+        setLoading(false);
+        setUploadProgress(0);
     };
 
     const deleteMedia = async (mid) => {
+        setLoading(true);
         const { error } = await supabase.from("media").delete().eq("id", mid);
         if (!error) {
             toast.success("Archivo eliminado");
@@ -103,6 +131,7 @@ const CategoryDetail = () => {
         } else {
             console.error("❌ Error eliminando media:", error);
         }
+        setLoading(false);
     };
 
     useEffect(() => {
@@ -134,18 +163,38 @@ const CategoryDetail = () => {
 
                 {/* Solo el admin puede subir archivos */}
                 {currentUser?.role === "admin" && (
-                    <div className="flex gap-2 mb-5">
-                        <input
-                            type="file"
-                            onChange={(e) => setFile(e.target.files[0])}
-                            className="border p-2 rounded flex-1 cursor-pointer"
-                        />
-                        <button
-                            onClick={uploadToR2}
-                            className="bg-blue-600 text-white px-4 rounded hover:bg-blue-700 cursor-pointer"
-                        >
-                            Subir
-                        </button>
+                    <div className="flex flex-col gap-2 mb-5 w-full">
+                        <div className="flex gap-2">
+                            <input
+                                type="file"
+                                onChange={(e) => setFile(e.target.files[0])}
+                                className="border p-2 rounded flex-1 cursor-pointer"
+                            />
+
+                            <button
+                                onClick={uploadToR2}
+                                disabled={loading}
+                                className="bg-blue-600 text-white px-4 rounded hover:bg-blue-700 cursor-pointer flex items-center gap-2"
+                            >
+                                {loading && <Loader2 className="animate-spin" />}
+                                {loading ? "Subiendo..." : "Subir"}
+                            </button>
+                        </div>
+
+                        {loading && (
+                            <div className="w-full h-3 bg-gray-300 rounded overflow-hidden">
+                                <div
+                                    className="h-full bg-blue-600 transition-all"
+                                    style={{ width: `${uploadProgress}%` }}
+                                ></div>
+                            </div>
+                        )}
+
+                        {loading && (
+                            <p className="text-sm font-medium text-gray-700 text-center">
+                                {uploadProgress}% completado
+                            </p>
+                        )}
                     </div>
                 )}
 
