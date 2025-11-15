@@ -3,8 +3,8 @@ import busboyInit from "busboy";
 
 export const config = {
     api: {
-        bodyParser: false,
-    },
+        bodyParser: false
+    }
 };
 
 export default async function handler(req, res) {
